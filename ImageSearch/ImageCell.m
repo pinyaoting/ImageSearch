@@ -17,10 +17,11 @@
 
 @implementation ImageCell
 
-- (id)initWithStyle:(UITableViewCellStyle)style reuseIdentifier:(NSString *)reuseIdentifier
+- (instancetype)initWithFrame:(CGRect)frame
 {
-    self = [super initWithStyle:style reuseIdentifier:reuseIdentifier];
+    self = [super initWithFrame:frame];
     if (self) {
+        self.contentView.frame = frame;
         [self addSubviewTree];
         [self setNeedsUpdateConstraints];
     }
@@ -57,8 +58,6 @@
 }
 
 - (void)setSearchResultImage:(SearchResultImage *)searchResultImage {
-    [self setNeedsUpdateConstraints];
-    
     _searchResultImage = searchResultImage;
     
     // load thumbnail

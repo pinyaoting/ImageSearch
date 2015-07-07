@@ -10,6 +10,6 @@
 
 @interface GoogleAPIClient : NSObject
 
-- (void)searchWithTerm:(NSString *)term completionHandler:(void (^)(NSURLResponse *response, NSData *data, NSError *connectionError))success;
+- (void)searchWithTerm:(NSString *)term options:(NSDictionary *)options completionHandler:(void (^)(NSURLResponse *response, NSData *data, NSError *connectionError))success;
 
 @end

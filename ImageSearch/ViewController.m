@@ -10,17 +10,18 @@
 #import "ImageCell.h"
 #import "GoogleAPIClient.h"
 
-const int NUM_OF_ROWS = 3;
-const int STATUSBAR_HEIGHT = 63;
+const int NUM_OF_COLS = 3;
 const int SEARCHBAR_HEIGHT = 44;
-@interface ViewController () <UITableViewDataSource, UITableViewDelegate, UISearchBarDelegate>
+const int BATCH_SIZE = 16;
+
+@interface ViewController () <UICollectionViewDataSource, UICollectionViewDelegate, UISearchBarDelegate>
 @property (nonatomic, assign) CGRect mainViewFrame;
 @property (nonatomic, assign) CGFloat rowHeight;
 @property (nonatomic, strong) UISearchBar *searchBar;
-@property (nonatomic, strong) UITableView *tableView;
+@property (nonatomic, strong) UICollectionView *collectionView;
 @property (nonatomic, strong) GoogleAPIClient *client;
 @property (nonatomic, strong) NSString *searchTerm;
-@property (nonatomic, strong) NSArray *images;
+@property (nonatomic, retain) NSMutableArray *images;
 
 @end
 
@@ -34,7 +35,7 @@ const int SEARCHBAR_HEIGHT = 44;
     [self constrainViews];
     
     self.client = [GoogleAPIClient new];
-    self.searchTerm = @"fuzzy monkey";
+    self.searchTerm = @"flowers";
     
     [self onRefresh];
 }
@@ -50,8 +51,12 @@ const int SEARCHBAR_HEIGHT = 44;
     return [[UIScreen mainScreen] bounds];
 }
 
-- (CGFloat)rowHeight {
-    return ([UIScreen mainScreen].bounds.size.height - SEARCHBAR_HEIGHT) / NUM_OF_ROWS;
+- (CGFloat)gridWidth {
+    return [UIScreen mainScreen].bounds.size.width / NUM_OF_COLS - 8;
+}
+
+- (CGFloat)gridHeight {
+    return self.gridWidth * 1;
 }
 
 - (UIView *)mainView {
@@ -67,29 +72,35 @@ const int SEARCHBAR_HEIGHT = 44;
     return mainView;
 }
 
-- (UITableView *)tableView {
-    if (!_tableView) {
-        _tableView = [[UITableView alloc] initWithFrame:self.mainViewFrame];
-        _tableView.autoresizingMask = (UIViewAutoresizingFlexibleBottomMargin |
-                                      UIViewAutoresizingFlexibleLeftMargin |
-                                      UIViewAutoresizingFlexibleRightMargin);
-        [_tableView registerClass:[ImageCell class] forCellReuseIdentifier:@"ImageCell"];
-        _tableView.dataSource = self;
-        _tableView.delegate = self;
-        _tableView.rowHeight = self.rowHeight;
+- (UICollectionViewFlowLayout *)flowLayout {
+    UICollectionViewFlowLayout *flowLayout = [[UICollectionViewFlowLayout alloc] init];
+    [flowLayout setItemSize:CGSizeMake(self.gridWidth, self.gridHeight)];
+    [flowLayout setScrollDirection:UICollectionViewScrollDirectionVertical];
+    return flowLayout;
+}
 
+- (UICollectionView *)collectionView {
+    if (!_collectionView) {
+        _collectionView = [[UICollectionView alloc] initWithFrame:self.mainViewFrame collectionViewLayout:self.flowLayout];
+        _collectionView.backgroundColor = [UIColor clearColor];
+        _collectionView.showsHorizontalScrollIndicator = NO;
+        _collectionView.showsVerticalScrollIndicator = NO;
+        [_collectionView registerClass:[ImageCell class] forCellWithReuseIdentifier:@"ImageCell"];
+        _collectionView.dataSource = self;
+        _collectionView.delegate = self;
+        _collectionView.pagingEnabled = NO;
     }
-    return _tableView;
+    return _collectionView;
 }
 
 - (void)addSubviewTree {
-    [self.view addSubview:self.tableView];
+    [self.view addSubview:self.collectionView];
 }
 
 - (void)constrainViews {
-    NSDictionary *viewsDict = @{@"tableView":self.tableView};
-    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[tableView]|" options:0 metrics:nil views:viewsDict]];
-    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[tableView]|" options:0 metrics:nil views:viewsDict]];
+    NSDictionary *viewsDict = @{@"collectionView":self.collectionView};
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[collectionView]|" options:0 metrics:nil views:viewsDict]];
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[collectionView]|" options:0 metrics:nil views:viewsDict]];
     
 }
 
@@ -101,36 +112,51 @@ const int SEARCHBAR_HEIGHT = 44;
     [self onRefresh];
 }
 
-#pragma mark - Table view methods
+#pragma mark - UICollectionViewDelegate methods
 
--(NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
-    return NUM_OF_ROWS;
+- (NSInteger)numberOfSectionsInCollectionView:(UICollectionView*)collectionView {
+    return 1;
 }
 
--(UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    ImageCell *cell = [tableView dequeueReusableCellWithIdentifier:@"ImageCell"];
+- (NSInteger)collectionView:(UICollectionView *)collectionView numberOfItemsInSection:(NSInteger)section {
+    return self.images.count;
+}
+
+- (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
+    ImageCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"ImageCell" forIndexPath:indexPath];
+    cell.backgroundColor = [UIColor whiteColor];
     [cell setSearchResultImage:self.images[indexPath.row]];
+    [cell setNeedsUpdateConstraints];
     return cell;
 }
 
-- (CGFloat)tableView:(UITableView *)tableView estimatedHeightForRowAtIndexPath:(NSIndexPath *)indexPath {
-    return self.rowHeight;
-}
-
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
-    [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    
+-(void)collectionView:(UICollectionView *)collectionView didSelectItemAtIndexPath:(NSIndexPath *)indexPath {
+    [collectionView deselectItemAtIndexPath:indexPath animated:YES];
     // implement image detail view here
 }
 
 #pragma mark - private methods
 
 - (void)onRefresh {
-    [self.client searchWithTerm:self.searchTerm completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
+    self.images = nil;
+    [self nextBatch];
+}
+
+- (void)nextBatch {
+    [self.client searchWithTerm:self.searchTerm options:@{@"start": [NSString stringWithFormat:@"%ld", self.images.count], @"rsz": @"8"} completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
         NSDictionary *responseDictionary = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         NSArray *imagesArray = [responseDictionary valueForKeyPath:@"responseData.results"];
-        self.images = [SearchResultImage imagesWithDictionaries:imagesArray];
-        [self.tableView reloadData];
+        NSArray *images = [SearchResultImage imagesWithDictionaries:imagesArray];
+        if (self.images) {
+            [self.images addObjectsFromArray:images];
+        } else {
+            self.images = [NSMutableArray arrayWithArray:images];
+        }
+        if (self.images.count < BATCH_SIZE) {
+            [self nextBatch];
+            return;
+        }
+        [self.collectionView reloadData];
     }];
 }
 

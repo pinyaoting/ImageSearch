@@ -9,7 +9,7 @@
 #import <UIKit/UIKit.h>
 #import "SearchResultImage.h"
 
-@interface ImageCell : UITableViewCell
+@interface ImageCell : UICollectionViewCell
 
 @property (nonatomic, strong) SearchResultImage *searchResultImage;
 
