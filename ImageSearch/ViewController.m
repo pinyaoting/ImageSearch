@@ -12,7 +12,8 @@
 
 const int NUM_OF_COLS = 3;
 const int SEARCHBAR_HEIGHT = 44;
-const int BATCH_SIZE = 16;
+const int BULK_SIZE = 16;
+const int BATCH_SIZE = 8;
 
 @interface ViewController () <UICollectionViewDataSource, UICollectionViewDelegate, UISearchBarDelegate>
 @property (nonatomic, assign) CGRect mainViewFrame;
@@ -137,22 +138,25 @@ const int BATCH_SIZE = 16;
 
 #pragma mark - private methods
 
+- (NSMutableArray *)images {
+    if (!_images) {
+        _images = [NSMutableArray array];
+    }
+    return _images;
+}
+
 - (void)onRefresh {
     self.images = nil;
     [self nextBatch];
 }
 
 - (void)nextBatch {
-    [self.client searchWithTerm:self.searchTerm options:@{@"start": [NSString stringWithFormat:@"%ld", self.images.count], @"rsz": @"8"} completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
+    [self.client searchWithTerm:self.searchTerm options:@{@"start": [NSString stringWithFormat:@"%ld", self.images.count], @"rsz": [NSString stringWithFormat:@"%d", BATCH_SIZE]} completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
         NSDictionary *responseDictionary = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         NSArray *imagesArray = [responseDictionary valueForKeyPath:@"responseData.results"];
         NSArray *images = [SearchResultImage imagesWithDictionaries:imagesArray];
-        if (self.images) {
-            [self.images addObjectsFromArray:images];
-        } else {
-            self.images = [NSMutableArray arrayWithArray:images];
-        }
-        if (self.images.count < BATCH_SIZE) {
+        [self.images addObjectsFromArray:images];
+        if (images.count == BATCH_SIZE && self.images.count < BULK_SIZE) {
             [self nextBatch];
             return;
         }
