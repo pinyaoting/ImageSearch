@@ -12,12 +12,11 @@
 
 const int NUM_OF_COLS = 3;
 const int SEARCHBAR_HEIGHT = 44;
-const int BULK_SIZE = 16;
+const int BULK_SIZE = 24;
 const int BATCH_SIZE = 8;
+const int ASPECT_RATIO = 1;
 
 @interface ViewController () <UICollectionViewDataSource, UICollectionViewDelegate, UISearchBarDelegate>
-@property (nonatomic, assign) CGRect mainViewFrame;
-@property (nonatomic, assign) CGFloat rowHeight;
 @property (nonatomic, strong) UISearchBar *searchBar;
 @property (nonatomic, strong) UICollectionView *collectionView;
 @property (nonatomic, strong) GoogleAPIClient *client;
@@ -31,7 +30,7 @@ const int BATCH_SIZE = 8;
 - (void)viewDidLoad {
     [super viewDidLoad];
 
-    self.view = [self mainView];
+    [self setupSearchBar];
     [self addSubviewTree];
     [self constrainViews];
     
@@ -53,24 +52,11 @@ const int BATCH_SIZE = 8;
 }
 
 - (CGFloat)gridWidth {
-    return [UIScreen mainScreen].bounds.size.width / NUM_OF_COLS - 8;
+    return [UIScreen mainScreen].bounds.size.width / NUM_OF_COLS - 12;
 }
 
 - (CGFloat)gridHeight {
-    return self.gridWidth * 1;
-}
-
-- (UIView *)mainView {
-    UIView *mainView = [[UIView alloc] initWithFrame: self.mainViewFrame];
-    mainView.backgroundColor = [UIColor clearColor];
-    mainView.translatesAutoresizingMaskIntoConstraints = NO;
-
-    self.searchBar = [[UISearchBar alloc] initWithFrame:CGRectMake(0, SEARCHBAR_HEIGHT, [UIScreen mainScreen].bounds.size.width, SEARCHBAR_HEIGHT)];
-    self.searchBar.placeholder = @"Search";
-    self.searchBar.delegate = self;
-    self.navigationItem.titleView = self.searchBar;
-    
-    return mainView;
+    return self.gridWidth * ASPECT_RATIO;
 }
 
 - (UICollectionViewFlowLayout *)flowLayout {
@@ -86,6 +72,7 @@ const int BATCH_SIZE = 8;
         _collectionView.backgroundColor = [UIColor clearColor];
         _collectionView.showsHorizontalScrollIndicator = NO;
         _collectionView.showsVerticalScrollIndicator = NO;
+        _collectionView.translatesAutoresizingMaskIntoConstraints = NO;
         [_collectionView registerClass:[ImageCell class] forCellWithReuseIdentifier:@"ImageCell"];
         _collectionView.dataSource = self;
         _collectionView.delegate = self;
@@ -94,26 +81,34 @@ const int BATCH_SIZE = 8;
     return _collectionView;
 }
 
+- (void)setupSearchBar {
+    self.searchBar = [[UISearchBar alloc] initWithFrame:CGRectMake(0, SEARCHBAR_HEIGHT, [UIScreen mainScreen].bounds.size.width, SEARCHBAR_HEIGHT)];
+    self.searchBar.placeholder = @"Search";
+    self.searchBar.delegate = self;
+    self.navigationItem.titleView = self.searchBar;
+}
+
 - (void)addSubviewTree {
     [self.view addSubview:self.collectionView];
 }
 
 - (void)constrainViews {
     NSDictionary *viewsDict = @{@"collectionView":self.collectionView};
-    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|[collectionView]|" options:0 metrics:nil views:viewsDict]];
-    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[collectionView]|" options:0 metrics:nil views:viewsDict]];
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"H:|-8-[collectionView]-8-|" options:0 metrics:nil views:viewsDict]];
+    [self.view addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|-8-[collectionView]-8-|" options:0 metrics:nil views:viewsDict]];
     
 }
 
 #pragma mark - Searchbar view methods
 
 -(void)searchBarSearchButtonClicked:(UISearchBar *)searchBar {
+    self.images = nil;
     self.searchTerm = searchBar.text;
     [self.searchBar endEditing:YES];
     [self onRefresh];
 }
 
-#pragma mark - UICollectionViewDelegate methods
+#pragma mark - Collection view methods
 
 - (NSInteger)numberOfSectionsInCollectionView:(UICollectionView*)collectionView {
     return 1;
@@ -146,7 +141,6 @@ const int BATCH_SIZE = 8;
 }
 
 - (void)onRefresh {
-    self.images = nil;
     [self nextBatch];
 }
 
@@ -154,13 +148,19 @@ const int BATCH_SIZE = 8;
     [self.client searchWithTerm:self.searchTerm options:@{@"start": [NSString stringWithFormat:@"%ld", self.images.count], @"rsz": [NSString stringWithFormat:@"%d", BATCH_SIZE]} completionHandler:^(NSURLResponse *response, NSData *data, NSError *connectionError) {
         NSDictionary *responseDictionary = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         NSArray *imagesArray = [responseDictionary valueForKeyPath:@"responseData.results"];
-        NSArray *images = [SearchResultImage imagesWithDictionaries:imagesArray];
-        [self.images addObjectsFromArray:images];
-        if (images.count == BATCH_SIZE && self.images.count < BULK_SIZE) {
-            [self nextBatch];
+
+        // end of search result, no more images can be returned from API
+        if (!imagesArray || imagesArray.count < BATCH_SIZE) {
             return;
         }
+        
+        NSArray *images = [SearchResultImage imagesWithDictionaries:imagesArray];
+        [self.images addObjectsFromArray:images];
         [self.collectionView reloadData];
+        
+        if (self.images.count < BULK_SIZE) {
+            [self nextBatch];
+        }
     }];
 }
 
