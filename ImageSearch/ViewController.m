@@ -21,7 +21,7 @@ const int ASPECT_RATIO = 1;
 @property (nonatomic, strong) UICollectionView *collectionView;
 @property (nonatomic, strong) GoogleAPIClient *client;
 @property (nonatomic, strong) NSString *searchTerm;
-@property (nonatomic, retain) NSMutableArray *images;
+@property (nonatomic, strong) NSMutableArray *images;
 
 @end
 
@@ -120,9 +120,8 @@ const int ASPECT_RATIO = 1;
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView cellForItemAtIndexPath:(NSIndexPath *)indexPath {
     ImageCell *cell = [collectionView dequeueReusableCellWithReuseIdentifier:@"ImageCell" forIndexPath:indexPath];
-    cell.backgroundColor = [UIColor whiteColor];
+    cell.backgroundColor = [UIColor clearColor];
     [cell setSearchResultImage:self.images[indexPath.row]];
-    [cell setNeedsUpdateConstraints];
     return cell;
 }
 

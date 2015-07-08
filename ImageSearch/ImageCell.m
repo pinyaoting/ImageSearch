@@ -23,9 +23,13 @@
     if (self) {
         self.contentView.frame = frame;
         [self addSubviewTree];
-        [self setNeedsUpdateConstraints];
+        [self constrainViews];
     }
     return self;
+}
+
+- (void)prepareForReuse {
+    self.resultImageView.image = nil;
 }
 
 #pragma mark - setup view hierachy
@@ -43,8 +47,7 @@
     [self.contentView addSubview:self.resultImageView];
 }
 
-- (void)updateConstraints {
-    [super updateConstraints];
+- (void)constrainViews {
     NSMutableDictionary *viewsDictionary = [NSMutableDictionary new];
     [viewsDictionary setObject:self.resultImageView forKey:@"resultImageView"];
     [self.contentView addConstraints:[NSLayoutConstraint constraintsWithVisualFormat:@"V:|[resultImageView]|"
@@ -59,7 +62,6 @@
 
 - (void)setSearchResultImage:(SearchResultImage *)searchResultImage {
     _searchResultImage = searchResultImage;
-    
     // load thumbnail
     [self displayImage:self.searchResultImage.thumbnailURL completionHandler:^(BOOL finished) {
         // load hi-res image

@@ -8,6 +8,12 @@
 
 #import "GoogleAPIClient.h"
 
+@interface GoogleAPIClient ()
+
+@property (nonatomic, strong) NSOperationQueue* queue;
+
+@end
+
 @implementation GoogleAPIClient
 
 - (void)searchWithTerm:(NSString *)term options:(NSDictionary *)options completionHandler:(void (^)(NSURLResponse *response, NSData *data, NSError *connectionError))completionHandler {
@@ -34,7 +40,15 @@
     
     // send async request
     [NSURLConnection sendAsynchronousRequest:request queue:[NSOperationQueue mainQueue] completionHandler:completionHandler];
-    
+}
+
+- (NSOperationQueue *)queue {
+    if (_queue) {
+        // create a new operation queue that is differ from main queue so that the execution of the async requst won't block UI
+        _queue = [[NSOperationQueue alloc] init];
+        _queue.name = @"async";
+    }
+    return _queue;
 }
 
 @end
